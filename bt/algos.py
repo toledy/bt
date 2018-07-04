@@ -142,8 +142,11 @@ class RunPeriod(Algo):
 
         result = False
 
-        # first date
+        # index 0 is a date added by the Backtest Constructor
         if index == 0:
+            return False
+        # first date
+        if index == 1:
             if self._run_on_first_date:
                 result = True
         # last date
@@ -428,7 +431,7 @@ class SelectAll(Algo):
         if self.include_no_data:
             target.temp['selected'] = target.universe.columns
         else:
-            universe = target.universe.ix[target.now].dropna()
+            universe = target.universe.loc[target.now].dropna()
             target.temp['selected'] = list(universe[universe > 0].index)
         return True
 
@@ -457,7 +460,7 @@ class SelectThese(Algo):
         if self.include_no_data:
             target.temp['selected'] = self.tickers
         else:
-            universe = target.universe[self.tickers].ix[target.now].dropna()
+            universe = target.universe[self.tickers].loc[target.now].dropna()
             target.temp['selected'] = list(universe[universe > 0].index)
         return True
 
@@ -512,11 +515,11 @@ class SelectHasData(Algo):
         else:
             selected = target.universe.columns
 
-        filt = target.universe[selected].ix[target.now - self.lookback:]
+        filt = target.universe[selected].loc[target.now - self.lookback:]
         cnt = filt.count()
         cnt = cnt[cnt >= self.min_count]
         if not self.include_no_data:
-            cnt = cnt[target.universe[selected].ix[target.now] > 0]
+            cnt = cnt[target.universe[selected].loc[target.now] > 0]
         target.temp['selected'] = list(cnt.index)
         return True
 
@@ -639,13 +642,14 @@ class SelectWhere(Algo):
     def __call__(self, target):
         # get signal Series at target.now
         if target.now in self.signal.index:
-            sig = self.signal.ix[target.now]
+            sig = self.signal.loc[target.now]
             # get tickers where True
-            selected = sig.index[sig]
+            #selected = sig.index[sig]
+            selected = sig[sig == True].index
             # save as list
             if not self.include_no_data:
                 universe = target.universe[
-                    list(selected)].ix[target.now].dropna()
+                    list(selected)].loc[target.now].dropna()
                 selected = list(universe[universe > 0].index)
             target.temp['selected'] = list(selected)
 
@@ -694,7 +698,7 @@ class SelectRandomly(AlgoStack):
             sel = target.universe.columns
 
         if not self.include_no_data:
-            universe = target.universe[list(sel)].ix[target.now].dropna()
+            universe = target.universe[list(sel)].loc[target.now].dropna()
             sel = list(universe[universe > 0].index)
 
         if self.n is not None:
@@ -736,7 +740,7 @@ class StatTotalReturn(Algo):
     def __call__(self, target):
         selected = target.temp['selected']
         t0 = target.now - self.lag
-        prc = target.universe[selected].ix[t0 - self.lookback:t0]
+        prc = target.universe[selected].loc[t0 - self.lookback:t0]
         target.temp['stat'] = prc.calc_total_return()
         return True
 
@@ -829,7 +833,7 @@ class WeighTarget(Algo):
     def __call__(self, target):
         # get current target weights
         if target.now in self.weights.index:
-            w = self.weights.ix[target.now]
+            w = self.weights.loc[target.now]
 
             # dropna and save
             target.temp['weights'] = w.dropna()
@@ -878,7 +882,7 @@ class WeighInvVol(Algo):
             return True
 
         t0 = target.now - self.lag
-        prc = target.universe[selected].ix[t0 - self.lookback:t0]
+        prc = target.universe[selected].loc[t0 - self.lookback:t0]
         tw = bt.ffn.calc_inv_vol_weights(
             prc.to_returns().dropna())
         target.temp['weights'] = tw.dropna()
@@ -956,7 +960,7 @@ class WeighERC(Algo):
             return True
 
         t0 = target.now - self.lag
-        prc = target.universe[selected].ix[t0 - self.lookback:t0]
+        prc = target.universe[selected].loc[t0 - self.lookback:t0]
         tw = bt.ffn.calc_erc_weights(
             prc.to_returns().dropna(),
             initial_weights=self.initial_weights,
@@ -1019,7 +1023,7 @@ class WeighMeanVar(Algo):
             return True
 
         t0 = target.now - self.lag
-        prc = target.universe[selected].ix[t0 - self.lookback:t0]
+        prc = target.universe[selected].loc[t0 - self.lookback:t0]
         tw = bt.ffn.calc_mean_var_weights(
             prc.to_returns().dropna(), weight_bounds=self.bounds,
             covar_method=self.covar_method, rf=self.rf)
@@ -1174,7 +1178,11 @@ class LimitWeights(Algo):
         if len(tw) == 0:
             return True
 
-        tw = bt.ffn.limit_weights(tw, self.limit)
+        # if the limit < equal weight then set weights to 0
+        if self.limit < 1.0 / len(tw):
+            tw = {}
+        else:
+            tw = bt.ffn.limit_weights(tw, self.limit)
         target.temp['weights'] = tw
 
         return True
@@ -1242,7 +1250,7 @@ class CloseDead(Algo):
 
         targets = target.temp['weights']
         for c in target.children:
-            if target.universe[c].ix[target.now] <= 0:
+            if target.universe[c].loc[target.now] <= 0:
                 target.close(c)
                 if c in targets:
                     del targets[c]

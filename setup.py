@@ -51,5 +51,6 @@ setup(
         'Topic :: Software Development :: Libraries',
         'Programming Language :: Python'
     ],
-    ext_modules=ext_modules
+    ext_modules=ext_modules,
+    python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*'
 )
